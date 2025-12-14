@@ -39,10 +39,26 @@ def gaussian(Q, u, H, x, y, sy, sz):
 
 
 # ----------------------------------------------------
+# Stability class (Turner – simplified)
+# ----------------------------------------------------
+def compute_stability_class(wind_speed, cloud_cover):
+    if wind_speed < 2:
+        return "A" if cloud_cover < 40 else "B"
+    elif 2 <= wind_speed < 3:
+        return "B" if cloud_cover < 40 else "C"
+    elif 3 <= wind_speed < 5:
+        return "C" if cloud_cover < 40 else "D"
+    elif 5 <= wind_speed < 6:
+        return "D"
+    else:
+        return "E"
+
+
+# ----------------------------------------------------
 # UI
 # ----------------------------------------------------
 st.set_page_config(page_title="Gaussian Plume Model", layout="centered")
-st.title("🌏 Gaussian Plume Model ")
+st.title("🌏 Gaussian Plume Model")
 
 # ----------------------------------------------------
 # City selection (REFERENCE ONLY)
@@ -115,29 +131,14 @@ lat, lon = city_list[city]
 
 if city != "Select City":
     st.info(f"Latitude: {lat}, Longitude: {lon}")
-    st.caption("City selection is for reference only.")
 
 # ----------------------------------------------------
-# Manual meteorological inputs
+# Meteorological inputs
 # ----------------------------------------------------
 st.header("🌤️ Meteorological Parameters (Manual)")
 
 wind_speed = st.number_input("Wind Speed u (m/s)", min_value=0.0, value=0.0)
-
-st.header("🌫️ Atmospheric Stability Class")
-stability_class = st.selectbox(
-    "Select Stability Class (A–F)",
-    ["Select", "A", "B", "C", "D", "E", "F"]
-)
-
-st.markdown("""
-A – Very Unstable  
-B – Unstable  
-C – Slightly Unstable  
-D – Neutral  
-E – Slightly Stable  
-F – Stable  
-""")
+cloud_cover = st.number_input("Cloud Cover (%)", min_value=0.0, max_value=100.0, value=0.0)
 
 # ----------------------------------------------------
 # Emission & stack inputs
@@ -155,14 +156,17 @@ calculate = st.button("🔍 Calculate")
 # Calculations
 # ----------------------------------------------------
 if calculate:
-    if wind_speed == 0 or Q == 0 or H == 0 or x == 0 or stability_class == "Select":
-        st.error("❌ Please enter ALL required values.")
+    if wind_speed == 0 or Q == 0 or H == 0 or x == 0:
+        st.error("❌ Please enter all required values.")
     else:
-        sy = sigma_y(x, stability_class)
-        sz = sigma_z(x, stability_class)
+        S_class = compute_stability_class(wind_speed, cloud_cover)
+
+        sy = sigma_y(x, S_class)
+        sz = sigma_z(x, S_class)
         C = gaussian(Q, wind_speed, H, x, y, sy, sz)
 
         st.header("📌 Computed Results")
+        st.info(f"**Computed Stability Class: {S_class}**")
         st.write(f"σᵧ = {sy:.2f} m")
         st.write(f"σz = {sz:.2f} m")
         st.success(f"Ground Level Concentration = {C:.6e} g/m³")
@@ -210,7 +214,7 @@ if calculate:
         ax1.grid(True, which="both")
         st.pyplot(fig1)
 
-        st.subheader("📉 σz vs Distance")
+        st.subheader("📈 σz vs Distance")
         fig2, ax2 = plt.subplots()
         for S in ["A", "B", "C", "D", "E", "F"]:
             ax2.plot(x_vals, [sigma_z(i, S) for i in x_vals], label=f"Class {S}")
